@@ -52,30 +52,44 @@ function include(filename) {
 }
 
 /**
+ * Ensure the header row exists and matches HEADERS. Upgrades older sheets safely.
+ */
+function ensureHeaders(sheet) {
+  const targetSheet = sheet || getSheet();
+  const headerRange = targetSheet.getRange(HEADER_ROW, 1, 1, HEADERS.length);
+  const existing = targetSheet.getRange(HEADER_ROW, 1, 1, Math.max(HEADERS.length, targetSheet.getLastColumn())).getValues()[0];
+
+  let needsUpdate = false;
+  // If any required header mismatches, or headers are fewer than expected, update
+  for (let i = 0; i < HEADERS.length; i++) {
+    if ((existing[i] || '') !== HEADERS[i]) {
+      needsUpdate = true;
+      break;
+    }
+  }
+
+  if (needsUpdate) {
+    targetSheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
+    const hr = targetSheet.getRange(HEADER_ROW, 1, 1, HEADERS.length);
+    hr.setBackground('#f8f9fa');
+    hr.setFontWeight('bold');
+    hr.setBorder(true, true, true, true, true, true);
+  }
+
+  return targetSheet;
+}
+
+/**
  * Initialize the sheet with headers if they don't exist
  */
 function initializeSheet() {
   const sheet = getSheet();
   
-  // Check if headers exist
-  const existingHeaders = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).getValues()[0];
-  const hasHeaders = existingHeaders.some(header => header !== '');
+  // Always ensure headers are up-to-date (idempotent)
+  ensureHeaders(sheet);
   
-  if (!hasHeaders) {
-    // Set headers
-    sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
-    
-    // Format headers
-    const headerRange = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length);
-    headerRange.setBackground('#f8f9fa');
-    headerRange.setFontWeight('bold');
-    headerRange.setBorder(true, true, true, true, true, true);
-    
-    SpreadsheetApp.getUi().alert('Success', 'Sheet2 has been initialized with employee headers!', SpreadsheetApp.getUi().ButtonSet.OK);
-    Logger.log('Sheet initialized with headers');
-  } else {
-    SpreadsheetApp.getUi().alert('Info', 'Sheet2 already has headers initialized.', SpreadsheetApp.getUi().ButtonSet.OK);
-  }
+  SpreadsheetApp.getUi().alert('Success', 'Sheet2 has been initialized/updated with employee headers!', SpreadsheetApp.getUi().ButtonSet.OK);
+  Logger.log('Sheet initialized/updated with headers');
   
   return sheet;
 }
@@ -100,7 +114,7 @@ function getSheet() {
  */
 function getAllEmployees() {
   try {
-    const sheet = getSheet();
+    const sheet = ensureHeaders(getSheet());
     const lastRow = sheet.getLastRow();
     
     if (lastRow < DATA_START_ROW) {
@@ -137,19 +151,7 @@ function getAllEmployees() {
  */
 function saveAllEmployees(employees) {
   try {
-    const sheet = getSheet();
-    
-    // Initialize headers if needed
-    const existingHeaders = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).getValues()[0];
-    const hasHeaders = existingHeaders.some(header => header !== '');
-    
-    if (!hasHeaders) {
-      sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
-      const headerRange = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length);
-      headerRange.setBackground('#f8f9fa');
-      headerRange.setFontWeight('bold');
-      headerRange.setBorder(true, true, true, true, true, true);
-    }
+    const sheet = ensureHeaders(getSheet());
     
     // Clear existing data (keep headers)
     const lastRow = sheet.getLastRow();
@@ -190,7 +192,7 @@ function saveAllEmployees(employees) {
  */
 function addEmployee(employee) {
   try {
-    const sheet = getSheet();
+    const sheet = ensureHeaders(getSheet());
     
     // Check for duplicate Emp ID
     const existingData = getAllEmployees();
@@ -229,7 +231,7 @@ function addEmployee(employee) {
  */
 function updateEmployee(employee, originalEmpId) {
   try {
-    const sheet = getSheet();
+    const sheet = ensureHeaders(getSheet());
     const lastRow = sheet.getLastRow();
     
     if (lastRow < DATA_START_ROW) {
