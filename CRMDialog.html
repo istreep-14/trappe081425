@@ -365,6 +365,22 @@
             font-size: 48px;
             margin-bottom: 16px;
         }
+
+        /* Photo picker */
+        .photo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .photo-preview {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid #dadce0;
+            background: #f1f3f4;
+        }
     </style>
 </head>
 <body>
@@ -464,6 +480,15 @@
                     </div>
                     
                     <div class="form-group">
+                        <label class="form-label">Photo</label>
+                        <div class="photo-section">
+                            <img id="photoPreview" class="photo-preview" alt="Photo preview" src="" style="display: none;">
+                            <input type="file" id="photoInput" accept="image/*" class="form-control">
+                        </div>
+                        <button type="button" class="btn" id="removePhotoBtn" style="margin-top: 8px; display: none;">Remove Photo</button>
+                    </div>
+                    
+                    <div class="form-group">
                         <label class="form-label">Notes</label>
                         <textarea id="note" class="form-control" rows="3"></textarea>
                     </div>
@@ -486,10 +511,13 @@
         let sortDirection = 'asc';
         let isEditing = false;
         let editingIndex = -1;
+        let pendingPhotoDataUrl = '';
+        let currentPhotoId = '';
 
         // Initialize when the dialog opens
         window.onload = function() {
             loadEmployees();
+            setupPhotoHandlers();
         };
 
         // Load employees from Google Sheets
@@ -581,6 +609,17 @@
                 checkbox.checked = positions.includes(checkbox.value);
             });
             
+            // Set photo preview
+            pendingPhotoDataUrl = '';
+            currentPhotoId = employee.photoId || '';
+            if (currentPhotoId) {
+                const url = 'https://drive.google.com/uc?export=view&id=' + currentPhotoId;
+                setPhotoPreview(url);
+            } else {
+                setPhotoPreview('');
+            }
+            document.getElementById('photoInput').value = '';
+            
             openEmployeeForm('Edit Employee: ' + employee.empId);
             setTimeout(() => document.getElementById('empId').focus(), 100);
         }
@@ -643,17 +682,33 @@
                 note: document.getElementById('note').value.trim()
             };
             
-            if (isEditing) {
-                employees[editingIndex] = employee;
-                showStatus('Employee updated successfully', 'success');
+            const onUploaded = (result) => {
+                if (result && result.success) {
+                    employee.photoId = result.photoId || '';
+                    finalizeEmployeeSave(employee);
+                } else {
+                    showStatus('Failed to upload photo: ' + (result && result.error ? result.error : 'Unknown error'), 'error');
+                    document.body.classList.remove('loading');
+                }
+            };
+
+            const onUploadError = (error) => {
+                showStatus('Failed to upload photo: ' + error.message, 'error');
+                document.body.classList.remove('loading');
+            };
+
+            // Handle photo upload if a new image was selected
+            if (pendingPhotoDataUrl) {
+                document.body.classList.add('loading');
+                google.script.run
+                    .withSuccessHandler(onUploaded)
+                    .withFailureHandler(onUploadError)
+                    .saveEmployeePhoto(pendingPhotoDataUrl, empId);
             } else {
-                employees.push(employee);
-                showStatus('Employee added successfully', 'success');
+                // Keep existing photo if any, or clear if removed
+                employee.photoId = currentPhotoId || '';
+                finalizeEmployeeSave(employee);
             }
-            
-            closeEmployeeForm();
-            refreshTable();
-            saveEmployees();
         }
 
         function openEmployeeForm(title) {
@@ -673,6 +728,25 @@
             document.querySelectorAll('#positionSelect input[type="checkbox"]').forEach(checkbox => {
                 checkbox.checked = false;
             });
+            pendingPhotoDataUrl = '';
+            currentPhotoId = '';
+            const input = document.getElementById('photoInput');
+            if (input) input.value = '';
+            setPhotoPreview('');
+        }
+
+        function finalizeEmployeeSave(employee) {
+            if (isEditing) {
+                employees[editingIndex] = employee;
+                showStatus('Employee updated successfully', 'success');
+            } else {
+                employees.push(employee);
+                showStatus('Employee added successfully', 'success');
+            }
+            document.body.classList.remove('loading');
+            closeEmployeeForm();
+            refreshTable();
+            saveEmployees();
         }
 
         // Table management functions
@@ -849,6 +923,52 @@
         function getSortArrow(column) {
             if (sortColumn !== column) return '';
             return sortDirection === 'asc' ? '↑' : '↓';
+        }
+
+        // Photo helpers
+        function setupPhotoHandlers() {
+            const input = document.getElementById('photoInput');
+            if (input) {
+                input.addEventListener('change', onPhotoSelected);
+            }
+            const removeBtn = document.getElementById('removePhotoBtn');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', removePhoto);
+            }
+        }
+
+        function onPhotoSelected(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                pendingPhotoDataUrl = e.target.result;
+                currentPhotoId = '';
+                setPhotoPreview(pendingPhotoDataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setPhotoPreview(url) {
+            const img = document.getElementById('photoPreview');
+            const removeBtn = document.getElementById('removePhotoBtn');
+            if (url) {
+                img.src = url;
+                img.style.display = 'block';
+                removeBtn.style.display = 'inline-block';
+            } else {
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                removeBtn.style.display = 'none';
+            }
+        }
+
+        function removePhoto() {
+            pendingPhotoDataUrl = '';
+            currentPhotoId = '';
+            const input = document.getElementById('photoInput');
+            if (input) input.value = '';
+            setPhotoPreview('');
         }
 
         // Utility functions

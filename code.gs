@@ -17,7 +17,7 @@ const HEADER_ROW = 1;
 const DATA_START_ROW = 2;
 
 // Headers in order
-const HEADERS = ['Emp Id', 'First Name', 'Last Name', 'Phone', 'Email', 'Position', 'Note'];
+const HEADERS = ['Emp Id', 'First Name', 'Last Name', 'Phone', 'Email', 'Position', 'Note', 'Photo ID'];
 
 /**
  * Runs when the spreadsheet is opened - adds the CRM menu
@@ -119,7 +119,8 @@ function getAllEmployees() {
         phone: row[3] || '',
         email: row[4] || '',
         position: row[5] || '',
-        note: row[6] || ''
+        note: row[6] || '',
+        photoId: row[7] || ''
       }));
     
     Logger.log(`Retrieved ${employees.length} employees`);
@@ -165,7 +166,8 @@ function saveAllEmployees(employees) {
         emp.phone || '',
         emp.email || '',
         emp.position || '',
-        emp.note || ''
+        emp.note || '',
+        emp.photoId || ''
       ]);
       
       // Write data to sheet
@@ -207,7 +209,8 @@ function addEmployee(employee) {
       employee.phone || '',
       employee.email || '',
       employee.position || '',
-      employee.note || ''
+      employee.note || '',
+      employee.photoId || ''
     ];
     
     sheet.appendRow(newRow);
@@ -259,7 +262,8 @@ function updateEmployee(employee, originalEmpId) {
       employee.phone || '',
       employee.email || '',
       employee.position || '',
-      employee.note || ''
+      employee.note || '',
+      employee.photoId || ''
     ];
     
     sheet.getRange(targetRow, 1, 1, HEADERS.length).setValues([updatedRow]);
@@ -305,4 +309,55 @@ function deleteEmployee(empId) {
     Logger.log('Error in deleteEmployee: ' + error.toString());
     return { success: false, error: error.toString() };
   }
+}
+
+/**
+ * Save an employee photo (data URL) to Drive and return file info
+ */
+function saveEmployeePhoto(dataUrl, empId) {
+  try {
+    if (!dataUrl) {
+      return { success: false, error: 'No image data provided' };
+    }
+
+    // Parse data URL: data:image/png;base64,AAAA
+    const matches = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);
+    if (!matches) {
+      return { success: false, error: 'Invalid image data format' };
+    }
+
+    const contentType = matches[1];
+    const base64 = matches[2];
+    const bytes = Utilities.base64Decode(base64);
+
+    // Derive extension from contentType
+    const extension = contentType.split('/')[1] || 'png';
+    const safeEmpId = (empId || 'employee').toString().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${safeEmpId}_${Date.now()}.${extension}`;
+
+    const folder = getOrCreatePhotosFolder();
+    const blob = Utilities.newBlob(bytes, contentType, fileName);
+    const file = folder.createFile(blob);
+
+    // Build a view URL that works for Drive-hosted images (user must have access)
+    const photoId = file.getId();
+    const viewUrl = `https://drive.google.com/uc?export=view&id=${photoId}`;
+
+    return { success: true, photoId: photoId, viewUrl: viewUrl };
+  } catch (error) {
+    Logger.log('Error in saveEmployeePhoto: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get or create the folder used to store employee photos
+ */
+function getOrCreatePhotosFolder() {
+  const folderName = 'Bar Employee CRM Photos';
+  const it = DriveApp.getFoldersByName(folderName);
+  if (it.hasNext()) {
+    return it.next();
+  }
+  return DriveApp.createFolder(folderName);
 }
