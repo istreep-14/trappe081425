@@ -76,6 +76,37 @@ function savePositionsList(list) {
 }
 
 /**
+ * Persist and retrieve the "Me" employee id
+ */
+function getMeEmployeeId() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const id = props.getProperty('CRM_ME_EMP_ID') || '';
+    return { success: true, empId: id };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+function setMeEmployeeId(empId) {
+  try {
+    PropertiesService.getScriptProperties().setProperty('CRM_ME_EMP_ID', String(empId || ''));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+function clearMeEmployeeId() {
+  try {
+    PropertiesService.getScriptProperties().deleteProperty('CRM_ME_EMP_ID');
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
  * Initialize the sheet with headers if they don't exist
  */
 function initializeSheet() {
