@@ -17,7 +17,7 @@ const HEADER_ROW = 1;
 const DATA_START_ROW = 2;
 
 // Headers in order
-const HEADERS = ['Emp Id', 'First Name', 'Last Name', 'Phone', 'Email', 'Position', 'Note', 'Photo URL'];
+const HEADERS = ['Emp Id', 'First Name', 'Last Name', 'Phone', 'Email', 'Position', 'Status', 'Note', 'Photo URL'];
 
 /**
  * Runs when the spreadsheet is opened - adds the CRM menu
@@ -52,6 +52,30 @@ function include(filename) {
 }
 
 /**
+ * Persist positions list in script properties
+ */
+function getPositionsList() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const raw = props.getProperty('CRM_POSITIONS_LIST') || '';
+    const positions = raw ? JSON.parse(raw) : [];
+    return { success: true, positions };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+function savePositionsList(list) {
+  try {
+    const normalized = (list || []).map(function(s){ return String(s || '').trim(); }).filter(function(s){ return s.length > 0; });
+    PropertiesService.getScriptProperties().setProperty('CRM_POSITIONS_LIST', JSON.stringify(normalized));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
  * Initialize the sheet with headers if they don't exist
  */
 function initializeSheet() {
@@ -74,6 +98,21 @@ function initializeSheet() {
     SpreadsheetApp.getUi().alert('Success', 'Sheet2 has been initialized with employee headers!', SpreadsheetApp.getUi().ButtonSet.OK);
     Logger.log('Sheet initialized with headers');
   } else {
+    // NOTE: HEADERS now includes a 'Status' column; initializeSheet will write updated headers if not present.
+    // If headers already exist, we need to adjust the index of the 'Status' column
+    // to match the new HEADERS array.
+    const statusIndex = HEADERS.indexOf('Status');
+    const existingStatusIndex = existingHeaders.indexOf('Status');
+    
+    if (existingStatusIndex !== -1 && statusIndex !== existingStatusIndex) {
+      // If the 'Status' column is at a different index, move it to the correct position
+      const newHeaders = [...HEADERS];
+      const statusHeader = newHeaders.splice(statusIndex, 1)[0];
+      newHeaders.splice(existingStatusIndex, 0, statusHeader);
+      
+      sheet.getRange(HEADER_ROW, 1, 1, newHeaders.length).setValues([newHeaders]);
+      Logger.log(`Adjusted Status column position from ${existingStatusIndex} to ${statusIndex}`);
+    }
     SpreadsheetApp.getUi().alert('Info', 'Sheet2 already has headers initialized.', SpreadsheetApp.getUi().ButtonSet.OK);
   }
   
@@ -119,8 +158,9 @@ function getAllEmployees() {
         phone: row[3] || '',
         email: row[4] || '',
         position: row[5] || '',
-        note: row[6] || '',
-        photoUrl: row[7] || ''
+        status: row[6] || '',
+        note: row[7] || '',
+        photoUrl: row[8] || ''
       }));
     
     Logger.log(`Retrieved ${employees.length} employees`);
@@ -161,6 +201,7 @@ function saveAllEmployees(employees) {
         emp.phone || '',
         emp.email || '',
         emp.position || '',
+        emp.status || '',
         emp.note || '',
         emp.photoUrl || ''
       ]);
@@ -204,6 +245,7 @@ function addEmployee(employee) {
       employee.phone || '',
       employee.email || '',
       employee.position || '',
+      employee.status || '',
       employee.note || '',
       employee.photoUrl || ''
     ];
@@ -257,6 +299,7 @@ function updateEmployee(employee, originalEmpId) {
       employee.phone || '',
       employee.email || '',
       employee.position || '',
+      employee.status || '',
       employee.note || '',
       employee.photoUrl || ''
     ];

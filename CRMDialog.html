@@ -485,7 +485,134 @@
                 max-width: 100%;
             }
         }
-    </style>
+        /* Added: status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid #dadce0;
+        }
+        .status-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-active { background-color: #e8f5e9; color: #1b5e20; border-color: #c8e6c9; }
+        .status-active .dot { background-color: #34a853; }
+        .status-inactive { background-color: #ffebee; color: #b71c1c; border-color: #ffcdd2; }
+        .status-inactive .dot { background-color: #ea4335; }
+
+        /* Added: help icon next to Close button */
+        .help-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: 1px solid #dadce0;
+            border-radius: 50%;
+            cursor: default;
+            font-weight: 700;
+            color: #3c4043;
+            background: #fff;
+        }
+
+        /* Added: small button */
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        /* Added: modal close X */
+        .modal-header { position: relative; }
+        .modal-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        /* Added: square photo for active card */
+        .active-card .photo.photo-square {
+            width: 180px;
+            height: 180px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f8f9fa;
+            flex: 0 0 auto;
+        }
+        .active-card .photo.photo-square img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Added: grid card view */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            padding: 12px;
+        }
+        .employee-card {
+            background: #fff;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            cursor: pointer;
+            transition: box-shadow 0.2s, transform 0.05s;
+        }
+        .employee-card:hover {
+            box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+        }
+        .employee-card.selected {
+            outline: 2px solid #4285f4;
+        }
+        .employee-card .card-photo {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #dadce0;
+            background: #f8f9fa;
+        }
+        .employee-card .card-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .employee-card .card-name {
+            font-weight: 600;
+        }
+        .employee-card .card-positions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .employee-card .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+      </style>
 </head>
 <body>
     <div class="crm-container">
@@ -500,17 +627,14 @@
                         <button class="btn btn-success" onclick="addEmployee()"><u>A</u>dd New</button>
                         <button class="btn btn-primary" onclick="editEmployee()"><u>E</u>dit</button>
                         <button class="btn btn-danger" onclick="deleteEmployee()"><u>D</u>elete</button>
-                        <button class="btn" onclick="google.script.host.close()"><u>C</u>lose</button>
+                        <button class="btn" onclick="google.script.host.close()" id="closeButton"><u>C</u>lose</button> <span class="help-icon" title="Keyboard shortcuts: A=Add, E=Edit, D=Delete, C=Close | Arrow keys to navigate | Enter to save forms">?</span> <button class="btn" id="toggleViewButton" onclick="toggleView()">Card View</button>
                     </div>
                     <div class="search-section">
                         <input type="text" id="globalSearch" class="global-search" placeholder="Search all employees..." onkeyup="applyFilters()">
-                        <div class="keyboard-hint">
-                            <strong>Keyboard shortcuts:</strong> A=Add, E=Edit, D=Delete, C=Close | Arrow keys to navigate | Enter to save forms
-                        </div>
+
                     </div>
                 </div>
                 <div id="activeCard" class="active-card">
-                    <div class="active-card-title">Selected Employee</div>
                     <div class="empty-state">
                         <div class="empty-state-icon">👤</div>
                         <div>Select an employee to preview details</div>
@@ -534,6 +658,7 @@
         <div class="form-modal">
             <div class="modal-header">
                 <h2 class="modal-title" id="formTitle">Add Employee</h2>
+                <button class="modal-close" type="button" onclick="closeEmployeeForm()" aria-label="Close">×</button>
             </div>
             
             <div class="form-content">
@@ -607,6 +732,14 @@
                     </div>
                     
                     <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select id="status" class="form-control">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label">Notes</label>
                         <textarea id="note" class="form-control" rows="3"></textarea>
                     </div>
@@ -614,8 +747,9 @@
             </div>
             
             <div class="form-actions">
-                <button type="button" class="btn" onclick="closeEmployeeForm()">Close</button>
+                <button type="button" class="btn" onclick="closeEmployeeForm()" id="formCloseBtn">Close</button>
                 <button type="button" class="btn btn-success" onclick="saveEmployee()">Save Employee</button>
+                <button type="button" class="btn btn-sm" onclick="openPositionsManager()">Edit Positions</button>
             </div>
         </div>
     </div>
@@ -630,10 +764,21 @@
         let isEditing = false;
         let editingIndex = -1;
         let columnFilters = {};
+        let isCardView = false;
+        let cardViewSelectedIndex = -1;
+        let positionsPalette = {
+            'Bartender': '#F3E5F5',
+            'Server': '#E3F2FD',
+            'Manager': '#E8F5E9',
+            'Host': '#FFF3E0',
+            'Kitchen Staff': '#E0F2F1',
+            'Security': '#FFEBEE'
+        };
 
         // Initialize when the dialog opens
         window.onload = function() {
             loadEmployees();
+            loadPositionsFromServer();
         };
 
         // Load employees from Google Sheets
@@ -718,15 +863,17 @@
             document.getElementById('phone').value = employee.phone || '';
             document.getElementById('email').value = employee.email || '';
             document.getElementById('note').value = employee.note || '';
+            document.getElementById('status').value = employee.status || 'Active';
             
             document.getElementById('photoUrl').value = employee.photoUrl || '';
             updatePhotoPreview(employee.photoUrl || '');
             
             // Set position checkboxes
-            const positions = employee.position ? employee.position.split(', ') : [];
-            document.querySelectorAll('#positionSelect input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = positions.includes(checkbox.value);
-            });
+                            let positions = employee.position ? employee.position.split(', ') : [];
+                hydratePositionChecklist();
+                document.querySelectorAll('#positionSelect input[type="checkbox"]').forEach(checkbox => {
+                    checkbox.checked = positions.includes(checkbox.value);
+                });
             
             openEmployeeForm('Edit Employee: ' + employee.empId);
             setTimeout(() => document.getElementById('empId').focus(), 100);
@@ -787,6 +934,7 @@
                 phone: document.getElementById('phone').value.trim(),
                 email: document.getElementById('email').value.trim(),
                 position: selectedPositions.join(', '),
+                status: document.getElementById('status').value,
                 note: document.getElementById('note').value.trim(),
                 photoUrl: document.getElementById('photoUrl').value.trim()
             };
@@ -818,6 +966,7 @@
 
         function clearForm() {
             document.getElementById('employeeForm').reset();
+            hydratePositionChecklist();
             document.querySelectorAll('#positionSelect input[type="checkbox"]').forEach(checkbox => {
                 checkbox.checked = false;
             });
@@ -826,6 +975,106 @@
             const photoFileInput = document.getElementById('photoFile');
             if (photoFileInput) photoFileInput.value = '';
             updatePhotoPreview('');
+        }
+
+        function renderCardGrid() {
+            const container = document.getElementById('tableContainer');
+            const grid = document.createElement('div');
+            grid.className = 'card-grid';
+
+            if (filteredEmployees.length === 0) {
+                container.innerHTML = '';
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.innerHTML = '<div class="empty-state-icon">📋</div><div>No employees to show</div>';
+                container.appendChild(empty);
+                renderActiveCard();
+                return;
+            }
+
+            filteredEmployees.forEach((employee, index) => {
+                const card = document.createElement('div');
+                card.className = 'employee-card';
+                if (index === cardViewSelectedIndex) card.classList.add('selected');
+                card.tabIndex = 0;
+                card.onclick = () => { cardViewSelectedIndex = index; activeRowIndex = index; renderCardGrid(); };
+
+                // card color by first position
+                const firstPosition = (employee.position || '').split(', ')[0];
+                if (firstPosition && positionsPalette[firstPosition]) {
+                    card.style.borderColor = '#cfd8dc';
+                    card.style.background = positionsPalette[firstPosition];
+                }
+
+                const photoDiv = document.createElement('div');
+                photoDiv.className = 'card-photo';
+                if (employee.photoUrl) {
+                    photoDiv.innerHTML = `<img src="${employee.photoUrl}" alt="Employee photo">`;
+                } else {
+                    photoDiv.innerHTML = `<div class="empty-state-icon" style="font-size:36px; line-height: 120px; text-align:center;">👤</div>`;
+                }
+
+                const name = document.createElement('div');
+                const fullName = [employee.firstName || '', employee.lastName || ''].filter(Boolean).join(' ') || '(No Name)';
+                name.className = 'card-name';
+                name.textContent = fullName;
+
+                const pos = document.createElement('div');
+                pos.className = 'card-positions';
+                (employee.position || '').split(', ').filter(Boolean).forEach(p => {
+                    const tag = document.createElement('span');
+                    tag.className = 'position-tag';
+                    if (positionsPalette[p]) {
+                        tag.style.backgroundColor = positionsPalette[p];
+                        tag.style.color = '#1f2937';
+                        tag.style.borderColor = '#cbd5e1';
+                    }
+                    tag.textContent = p;
+                    pos.appendChild(tag);
+                });
+
+                const footer = document.createElement('div');
+                footer.className = 'card-footer';
+                footer.innerHTML = `
+                    <span>${renderStatusBadge(employee.status)}</span>
+                    <button class="btn btn-sm" onclick="selectRow(${index}); event.stopPropagation();">Details</button>
+                `;
+
+                card.appendChild(photoDiv);
+                card.appendChild(name);
+                if (pos.childNodes.length) card.appendChild(pos);
+                card.appendChild(footer);
+                grid.appendChild(card);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(grid);
+            renderActiveCard();
+        }
+
+        function toggleView() {
+            isCardView = !isCardView;
+            const btn = document.getElementById('toggleViewButton');
+            if (btn) btn.textContent = isCardView ? 'Table View' : 'Card View';
+            cardViewSelectedIndex = isCardView ? Math.max(0, activeRowIndex) : -1;
+            renderTable();
+        }
+
+        function moveCardSelection(direction) {
+            if (!isCardView || filteredEmployees.length === 0) return;
+            const cols = 4;
+            const maxIndex = filteredEmployees.length - 1;
+            let next = cardViewSelectedIndex;
+            if (next < 0) next = 0;
+            switch(direction) {
+                case 'left': next = Math.max(0, next - 1); break;
+                case 'right': next = Math.min(maxIndex, next + 1); break;
+                case 'up': next = Math.max(0, next - cols); break;
+                case 'down': next = Math.min(maxIndex, next + cols); break;
+            }
+            cardViewSelectedIndex = next;
+            activeRowIndex = next;
+            renderCardGrid();
         }
 
         // Table management functions
@@ -881,6 +1130,7 @@
         }
 
         function renderTable() {
+            if (isCardView) { renderCardGrid(); return; }
             const container = document.getElementById('tableContainer');
             
             const table = document.createElement('table');
@@ -895,6 +1145,7 @@
                 { key: 'phone', label: 'Phone' },
                 { key: 'email', label: 'Email' },
                 { key: 'position', label: 'Position' },
+                { key: 'status', label: 'Status' },
                 { key: 'note', label: 'Notes' }
             ];
             
@@ -944,6 +1195,12 @@
                 if (index === activeRowIndex) {
                     row.classList.add('active');
                 }
+                // position color background hint
+                const firstPosition = (employee.position || '').split(', ')[0];
+                if (firstPosition && positionsPalette[firstPosition]) {
+                    row.style.setProperty('--rowAccent', positionsPalette[firstPosition]);
+                    row.style.background = 'var(--rowBg, #fff)';
+                }
                 
                 // Employee ID
                 const empIdCell = document.createElement('td');
@@ -979,12 +1236,22 @@
                     positions.forEach(pos => {
                         const tag = document.createElement('span');
                         tag.className = 'position-tag';
+                        if (positionsPalette[pos]) {
+                            tag.style.backgroundColor = positionsPalette[pos];
+                            tag.style.color = '#1f2937';
+                            tag.style.borderColor = '#cbd5e1';
+                        }
                         tag.textContent = pos;
                         positionsDiv.appendChild(tag);
                     });
                     positionCell.appendChild(positionsDiv);
                 }
                 row.appendChild(positionCell);
+                
+                // Status
+                const statusCell = document.createElement('td');
+                statusCell.innerHTML = renderStatusBadge(employee.status);
+                row.appendChild(statusCell);
                 
                 // Notes
                 const noteCell = document.createElement('td');
@@ -1009,7 +1276,6 @@
 
             if (!employee) {
                 card.innerHTML = `
-                    <div class="active-card-title">Selected Employee</div>
                     <div class="empty-state">
                         <div class="empty-state-icon">👤</div>
                         <div>Select an employee to preview details</div>
@@ -1022,15 +1288,14 @@
             const positionsHtml = (employee.position || '')
                 .split(', ')
                 .filter(Boolean)
-                .map(pos => `<span class="position-tag">${pos}</span>`)
+                .map(pos => `<span class=\"position-tag\" style=\"${positionsPalette[pos] ? `background-color: ${positionsPalette[pos]}; color: #1f2937; border-color: #cbd5e1;` : ''}\">${pos}</span>`)
                 .join('');
 
             const photoHtml = employee.photoUrl ? `<img src="${employee.photoUrl}" alt="Employee photo">` : `<div class="empty-state-icon" style="font-size:72px;">👤</div>`;
 
             card.innerHTML = `
-                <div class="active-card-title">Selected Employee</div>
                 <div class="active-card-inner">
-                    <div class="photo">
+                    <div class="photo photo-square">
                         ${photoHtml}
                     </div>
                     <div class="details">
@@ -1039,6 +1304,7 @@
                         <div class="detail"><span class="label">Email:</span>${employee.email || ''}</div>
                         <div class="detail"><span class="label">Phone:</span>${employee.phone || ''}</div>
                         ${positionsHtml ? `<div class="positions">${positionsHtml}</div>` : ''}
+                        ${employee.status ? `<div class="detail" style="margin-top:6px;"><span class="label">Status:</span>${renderStatusBadge(employee.status)}</div>` : ''}
                         ${employee.note ? `<div class="detail" style="margin-top:8px;"><span class="label">Notes:</span>${employee.note}</div>` : ''}
                     </div>
                 </div>
@@ -1087,6 +1353,14 @@
             }, 3000);
         }
 
+        function renderStatusBadge(status) {
+            const normalized = (status || 'Active').toLowerCase();
+            const isActive = normalized === 'active';
+            const cls = isActive ? 'status-active' : 'status-inactive';
+            const safe = isActive ? 'Active' : 'Inactive';
+            return `<span class="status-badge ${cls}"><span class="dot"></span>${safe}</span>`;
+        }
+
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
             // Don't trigger shortcuts when typing in inputs
@@ -1119,15 +1393,19 @@
                     break;
                 case 'arrowup':
                     e.preventDefault();
-                    if (activeRowIndex > 0) {
-                        selectRow(activeRowIndex - 1);
-                    }
+                    if (isCardView) { moveCardSelection('up'); }
+                    else if (activeRowIndex > 0) { selectRow(activeRowIndex - 1); }
                     break;
                 case 'arrowdown':
                     e.preventDefault();
-                    if (activeRowIndex < filteredEmployees.length - 1) {
-                        selectRow(activeRowIndex + 1);
-                    }
+                    if (isCardView) { moveCardSelection('down'); }
+                    else if (activeRowIndex < filteredEmployees.length - 1) { selectRow(activeRowIndex + 1); }
+                    break;
+                case 'arrowleft':
+                    if (isCardView) { e.preventDefault(); moveCardSelection('left'); }
+                    break;
+                case 'arrowright':
+                    if (isCardView) { e.preventDefault(); moveCardSelection('right'); }
                     break;
                 case 'escape':
                     if (document.getElementById('employeeFormModal').style.display === 'block') {
@@ -1185,6 +1463,51 @@
                     .uploadEmployeePhoto(dataUrl, file.name, empId);
             };
             reader.readAsDataURL(file);
+        }
+
+        function hydratePositionChecklist() {
+            // If dynamic positions exist in memory, render them, else keep existing
+            if (!Array.isArray(window.customPositions) || window.customPositions.length === 0) return;
+            const container = document.getElementById('positionSelect');
+            if (!container) return;
+            container.innerHTML = '';
+            window.customPositions.forEach((p, idx) => {
+                const id = `pos-${idx}`;
+                const row = document.createElement('div');
+                row.className = 'multi-select-option';
+                row.innerHTML = `<input type="checkbox" id="${id}" value="${p}"><label for="${id}">${p}</label>`;
+                container.appendChild(row);
+            });
+        }
+
+        function loadPositionsFromServer() {
+            if (window.__positionsLoading) return;
+            window.__positionsLoading = true;
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    window.__positionsLoading = false;
+                    if (result && result.success) {
+                        window.customPositions = result.positions || [];
+                        hydratePositionChecklist();
+                    }
+                })
+                .withFailureHandler(function(){ window.__positionsLoading = false; })
+                .getPositionsList();
+        }
+
+        function openPositionsManager() {
+            const current = Array.isArray(window.customPositions) && window.customPositions.length
+                ? window.customPositions.slice()
+                : Array.from(document.querySelectorAll('#positionSelect label')).map(l => l.textContent);
+            const value = prompt('Edit positions (comma separated):', current.join(', '));
+            if (value == null) return;
+            const list = value.split(',').map(s => s.trim()).filter(Boolean);
+            window.customPositions = list;
+            hydratePositionChecklist();
+            google.script.run
+                .withSuccessHandler(function(){ showStatus('Positions updated', 'success'); })
+                .withFailureHandler(function(e){ showStatus('Failed to save positions: ' + e.message, 'error'); })
+                .savePositionsList(list);
         }
     </script>
 </body>
