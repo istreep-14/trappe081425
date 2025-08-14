@@ -17,7 +17,7 @@ const HEADER_ROW = 1;
 const DATA_START_ROW = 2;
 
 // Headers in order
-const HEADERS = ['Emp Id', 'First Name', 'Last Name', 'Phone', 'Email', 'Position', 'Note'];
+const HEADERS = ['Emp Id', 'First Name', 'Last Name', 'Phone', 'Email', 'Position', 'Note', 'Photo URL'];
 
 /**
  * Runs when the spreadsheet is opened - adds the CRM menu
@@ -119,7 +119,8 @@ function getAllEmployees() {
         phone: row[3] || '',
         email: row[4] || '',
         position: row[5] || '',
-        note: row[6] || ''
+        note: row[6] || '',
+        photoUrl: row[7] || ''
       }));
     
     Logger.log(`Retrieved ${employees.length} employees`);
@@ -138,17 +139,12 @@ function saveAllEmployees(employees) {
   try {
     const sheet = getSheet();
     
-    // Initialize headers if needed
-    const existingHeaders = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).getValues()[0];
-    const hasHeaders = existingHeaders.some(header => header !== '');
-    
-    if (!hasHeaders) {
-      sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
-      const headerRange = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length);
-      headerRange.setBackground('#f8f9fa');
-      headerRange.setFontWeight('bold');
-      headerRange.setBorder(true, true, true, true, true, true);
-    }
+    // Ensure headers are present and up-to-date
+    sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
+    const headerRange = sheet.getRange(HEADER_ROW, 1, 1, HEADERS.length);
+    headerRange.setBackground('#f8f9fa');
+    headerRange.setFontWeight('bold');
+    headerRange.setBorder(true, true, true, true, true, true);
     
     // Clear existing data (keep headers)
     const lastRow = sheet.getLastRow();
@@ -165,7 +161,8 @@ function saveAllEmployees(employees) {
         emp.phone || '',
         emp.email || '',
         emp.position || '',
-        emp.note || ''
+        emp.note || '',
+        emp.photoUrl || ''
       ]);
       
       // Write data to sheet
@@ -207,7 +204,8 @@ function addEmployee(employee) {
       employee.phone || '',
       employee.email || '',
       employee.position || '',
-      employee.note || ''
+      employee.note || '',
+      employee.photoUrl || ''
     ];
     
     sheet.appendRow(newRow);
@@ -259,7 +257,8 @@ function updateEmployee(employee, originalEmpId) {
       employee.phone || '',
       employee.email || '',
       employee.position || '',
-      employee.note || ''
+      employee.note || '',
+      employee.photoUrl || ''
     ];
     
     sheet.getRange(targetRow, 1, 1, HEADERS.length).setValues([updatedRow]);
@@ -303,6 +302,48 @@ function deleteEmployee(empId) {
     
   } catch (error) {
     Logger.log('Error in deleteEmployee: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Upload a photo to Google Drive and return an embeddable URL
+ */
+function uploadEmployeePhoto(dataUrl, fileName, empId) {
+  try {
+    if (!dataUrl) {
+      return { success: false, error: 'Missing dataUrl' };
+    }
+    const matches = dataUrl.match(/^data:(.+);base64,(.*)$/);
+    if (!matches) {
+      return { success: false, error: 'Invalid data URL' };
+    }
+    const contentType = matches[1];
+    const base64Data = matches[2];
+    const bytes = Utilities.base64Decode(base64Data);
+    const tz = Session.getScriptTimeZone() || 'Etc/GMT';
+    const timestamp = Utilities.formatDate(new Date(), tz, 'yyyyMMdd_HHmmss');
+    const safeEmpId = (empId || 'employee').toString().replace(/[^a-zA-Z0-9_-]+/g, '_');
+    const baseName = `${safeEmpId}_${timestamp}`;
+    const finalName = fileName ? `${baseName}_${fileName}` : `${baseName}.png`;
+    const blob = Utilities.newBlob(bytes, contentType, finalName);
+
+    const folderName = 'Employee CRM Photos';
+    let folderIter = DriveApp.getFoldersByName(folderName);
+    let folder = folderIter.hasNext() ? folderIter.next() : DriveApp.createFolder(folderName);
+
+    const file = folder.createFile(blob).setName(finalName);
+    // Make viewable via link for embedding in <img>
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {
+      // In some domains, ANYONE_WITH_LINK may be restricted; ignore if fails
+    }
+    const id = file.getId();
+    const viewUrl = `https://drive.google.com/uc?export=view&id=${id}`;
+    return { success: true, url: viewUrl, id: id };
+  } catch (error) {
+    Logger.log('Error in uploadEmployeePhoto: ' + error.toString());
     return { success: false, error: error.toString() };
   }
 }
