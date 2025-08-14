@@ -245,9 +245,11 @@
             background: white;
             border-radius: 8px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            width: 400px;
+            width: 420px;
             max-height: 80vh;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .modal-header {
@@ -264,6 +266,8 @@
 
         .form-content {
             padding: 20px;
+            flex: 1 1 auto;
+            overflow-y: auto;
         }
 
         .form-group {
@@ -327,6 +331,9 @@
             display: flex;
             gap: 10px;
             justify-content: flex-end;
+            position: sticky;
+            bottom: 0;
+            z-index: 1;
         }
 
         .status-message {
@@ -384,8 +391,8 @@
             border-radius: 8px;
             padding: 16px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            width: 360px;
-            flex: 0 0 360px;
+            width: auto;
+            flex: 1 1 0;
         }
 
         .active-card-title {
@@ -420,6 +427,49 @@
             margin-top: 6px;
         }
 
+        .active-card-inner {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .active-card .photo {
+            flex: 2;
+        }
+        .active-card .photo img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            object-fit: cover;
+            display: block;
+        }
+        .active-card .details {
+            flex: 1;
+            min-width: 0;
+        }
+        .photo-upload {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+        .photo-preview {
+            width: 120px;
+            height: 120px;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .photo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
         @media (max-width: 1100px) {
             .top-panel {
                 flex-direction: column;
@@ -427,6 +477,12 @@
             .active-card {
                 width: 100%;
                 flex: 1 1 auto;
+            }
+            .active-card-inner {
+                flex-direction: column;
+            }
+            .active-card .photo {
+                max-width: 100%;
             }
         }
     </style>
@@ -508,6 +564,19 @@
                     </div>
                     
                     <div class="form-group">
+                        <label class="form-label">Photo</label>
+                        <div class="photo-upload">
+                            <div class="photo-preview" id="photoPreviewContainer">
+                                <img id="photoPreview" alt="Photo preview" style="display:none;">
+                            </div>
+                            <div>
+                                <input type="text" id="photoUrl" class="form-control" placeholder="Paste image URL or upload below" oninput="updatePhotoPreview(this.value)">
+                                <input type="file" id="photoFile" accept="image/*" onchange="onPhotoFileSelected(event)" style="margin-top: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
                         <label class="form-label">Position(s)</label>
                         <div class="multi-select" id="positionSelect">
                             <div class="multi-select-option">
@@ -545,7 +614,7 @@
             </div>
             
             <div class="form-actions">
-                <button type="button" class="btn" onclick="closeEmployeeForm()">Cancel</button>
+                <button type="button" class="btn" onclick="closeEmployeeForm()">Close</button>
                 <button type="button" class="btn btn-success" onclick="saveEmployee()">Save Employee</button>
             </div>
         </div>
@@ -560,6 +629,7 @@
         let sortDirection = 'asc';
         let isEditing = false;
         let editingIndex = -1;
+        let columnFilters = {};
 
         // Initialize when the dialog opens
         window.onload = function() {
@@ -649,6 +719,9 @@
             document.getElementById('email').value = employee.email || '';
             document.getElementById('note').value = employee.note || '';
             
+            document.getElementById('photoUrl').value = employee.photoUrl || '';
+            updatePhotoPreview(employee.photoUrl || '');
+            
             // Set position checkboxes
             const positions = employee.position ? employee.position.split(', ') : [];
             document.querySelectorAll('#positionSelect input[type="checkbox"]').forEach(checkbox => {
@@ -714,7 +787,8 @@
                 phone: document.getElementById('phone').value.trim(),
                 email: document.getElementById('email').value.trim(),
                 position: selectedPositions.join(', '),
-                note: document.getElementById('note').value.trim()
+                note: document.getElementById('note').value.trim(),
+                photoUrl: document.getElementById('photoUrl').value.trim()
             };
             
             if (isEditing) {
@@ -747,6 +821,11 @@
             document.querySelectorAll('#positionSelect input[type="checkbox"]').forEach(checkbox => {
                 checkbox.checked = false;
             });
+            const photoUrlInput = document.getElementById('photoUrl');
+            if (photoUrlInput) photoUrlInput.value = '';
+            const photoFileInput = document.getElementById('photoFile');
+            if (photoFileInput) photoFileInput.value = '';
+            updatePhotoPreview('');
         }
 
         // Table management functions
@@ -770,9 +849,12 @@
             }
             
             // Apply column filters
+            columnFilters = {};
             document.querySelectorAll('.column-filter').forEach(filter => {
                 const column = filter.dataset.column;
-                const filterValue = filter.value.toLowerCase();
+                const filterValueRaw = filter.value || '';
+                const filterValue = filterValueRaw.toLowerCase();
+                columnFilters[column] = filterValueRaw;
                 if (filterValue) {
                     filteredEmployees = filteredEmployees.filter(emp => {
                         const cellValue = emp[column] || '';
@@ -801,12 +883,6 @@
         function renderTable() {
             const container = document.getElementById('tableContainer');
             
-            if (filteredEmployees.length === 0) {
-                showEmptyState(employees.length === 0 ? 'No employees found. Click "Add New" to get started!' : 'No employees match your search criteria');
-                renderActiveCard();
-                return;
-            }
-            
             const table = document.createElement('table');
             table.className = 'data-table';
             
@@ -834,10 +910,32 @@
                                placeholder="Filter..." onkeyup="applyFilters()">
                     </div>
                 `;
+                const inputEl = th.querySelector('input');
+                if (inputEl && columnFilters && Object.prototype.hasOwnProperty.call(columnFilters, col.key)) {
+                    inputEl.value = columnFilters[col.key] || '';
+                }
                 headerRow.appendChild(th);
             });
             
             table.appendChild(headerRow);
+            
+            if (filteredEmployees.length === 0) {
+                const emptyRow = document.createElement('tr');
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = columns.length;
+                emptyCell.style.padding = '24px';
+                emptyCell.style.textAlign = 'center';
+                emptyCell.textContent = employees.length === 0
+                    ? 'No employees found. Click "Add New" to get started!'
+                    : 'No employees match your search criteria. Clear or adjust filters to see results.';
+                emptyRow.appendChild(emptyCell);
+                table.appendChild(emptyRow);
+                
+                container.innerHTML = '';
+                container.appendChild(table);
+                renderActiveCard();
+                return;
+            }
             
             // Create data rows
             filteredEmployees.forEach((employee, index) => {
@@ -927,14 +1025,23 @@
                 .map(pos => `<span class="position-tag">${pos}</span>`)
                 .join('');
 
+            const photoHtml = employee.photoUrl ? `<img src="${employee.photoUrl}" alt="Employee photo">` : `<div class="empty-state-icon" style="font-size:72px;">👤</div>`;
+
             card.innerHTML = `
                 <div class="active-card-title">Selected Employee</div>
-                <div class="name">${fullName || '(No Name)'}</div>
-                <div class="detail"><span class="label">Emp ID:</span>${employee.empId || ''}</div>
-                <div class="detail"><span class="label">Email:</span>${employee.email || ''}</div>
-                <div class="detail"><span class="label">Phone:</span>${employee.phone || ''}</div>
-                ${positionsHtml ? `<div class="positions">${positionsHtml}</div>` : ''}
-                ${employee.note ? `<div class="detail" style="margin-top:8px;"><span class="label">Notes:</span>${employee.note}</div>` : ''}
+                <div class="active-card-inner">
+                    <div class="photo">
+                        ${photoHtml}
+                    </div>
+                    <div class="details">
+                        <div class="name">${fullName || '(No Name)'}</div>
+                        <div class="detail"><span class="label">Emp ID:</span>${employee.empId || ''}</div>
+                        <div class="detail"><span class="label">Email:</span>${employee.email || ''}</div>
+                        <div class="detail"><span class="label">Phone:</span>${employee.phone || ''}</div>
+                        ${positionsHtml ? `<div class="positions">${positionsHtml}</div>` : ''}
+                        ${employee.note ? `<div class="detail" style="margin-top:8px;"><span class="label">Notes:</span>${employee.note}</div>` : ''}
+                    </div>
+                </div>
             `;
         }
 
@@ -1037,6 +1144,48 @@
                 closeEmployeeForm();
             }
         });
+
+        function updatePhotoPreview(url) {
+            const preview = document.getElementById('photoPreview');
+            if (!preview) return;
+            if (url) {
+                preview.src = url;
+                preview.style.display = 'block';
+            } else {
+                preview.removeAttribute('src');
+                preview.style.display = 'none';
+            }
+        }
+
+        function onPhotoFileSelected(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                const empId = document.getElementById('empId').value.trim() || 'unassigned';
+                showStatus('Uploading photo...', 'success');
+                document.body.classList.add('loading');
+                google.script.run
+                    .withSuccessHandler(function(result) {
+                        document.body.classList.remove('loading');
+                        if (result && result.success && result.url) {
+                            const url = result.url;
+                            document.getElementById('photoUrl').value = url;
+                            updatePhotoPreview(url);
+                            showStatus('Photo uploaded', 'success');
+                        } else {
+                            showStatus('Photo upload failed', 'error');
+                        }
+                    })
+                    .withFailureHandler(function(error) {
+                        document.body.classList.remove('loading');
+                        showStatus('Photo upload failed: ' + error.message, 'error');
+                    })
+                    .uploadEmployeePhoto(dataUrl, file.name, empId);
+            };
+            reader.readAsDataURL(file);
+        }
     </script>
 </body>
 </html>
